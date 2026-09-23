@@ -9,3 +9,15 @@ output "trail_name" {
 output "trail_bucket" {
   value = aws_s3_bucket.trail.id
 }
+
+output "events_queue_url" {
+  value = aws_sqs_queue.events.id
+}
+
+output "dlq_url" {
+  value = aws_sqs_queue.dlq.id
+}
+
+output "lambda_log_group" {
+  value = aws_cloudwatch_log_group.lambda.name
+}
