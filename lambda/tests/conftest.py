@@ -44,3 +44,18 @@ def make_iam_event(benign_policy_detail):
         return detail
 
     return make
+
+
+@pytest.fixture
+def make_ec2_event(benign_policy_detail):
+    def make(request_parameters, response_elements=None, **extra):
+        detail = copy.deepcopy(benign_policy_detail)
+        detail["eventSource"] = "ec2.amazonaws.com"
+        detail["eventName"] = "AuthorizeSecurityGroupIngress"
+        detail["awsRegion"] = "us-east-1"
+        detail["requestParameters"] = request_parameters
+        detail["responseElements"] = response_elements
+        detail.update(extra)
+        return detail
+
+    return make

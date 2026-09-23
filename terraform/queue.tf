@@ -3,6 +3,7 @@ locals {
   detection_rule_arns = [
     aws_cloudwatch_event_rule.s3_public_access.arn,
     aws_cloudwatch_event_rule.iam_privesc.arn,
+    aws_cloudwatch_event_rule.sg_open.arn,
   ]
 }
 

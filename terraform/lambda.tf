@@ -126,6 +126,31 @@ resource "aws_iam_role_policy" "detect_iam_privesc" {
   policy = data.aws_iam_policy_document.detect_iam_privesc.json
 }
 
+# Detection 3: revoke ingress rules and read SG tags for the allowlist.
+# Describe* calls can't be scoped to a resource in IAM, so that one is "*".
+data "aws_iam_policy_document" "detect_sg_open" {
+  statement {
+    sid     = "SgOpenRemediation"
+    actions = ["ec2:RevokeSecurityGroupIngress"]
+    resources = [
+      "arn:aws:ec2:*:${local.account_id}:security-group/*",
+      "arn:aws:ec2:*:${local.account_id}:security-group-rule/*",
+    ]
+  }
+
+  statement {
+    sid       = "SgOpenAllowlistCheck"
+    actions   = ["ec2:DescribeSecurityGroups"]
+    resources = ["*"]
+  }
+}
+
+resource "aws_iam_role_policy" "detect_sg_open" {
+  name   = "detect-sg-open"
+  role   = aws_iam_role.lambda.id
+  policy = data.aws_iam_policy_document.detect_sg_open.json
+}
+
 # ---------- Function ----------
 
 resource "aws_lambda_function" "handler" {
@@ -153,6 +178,7 @@ resource "aws_lambda_function" "handler" {
     aws_iam_role_policy.lambda_base,
     aws_iam_role_policy.detect_s3_public,
     aws_iam_role_policy.detect_iam_privesc,
+    aws_iam_role_policy.detect_sg_open,
   ]
 }
 

@@ -22,11 +22,16 @@ logger.setLevel(os.environ.get("LOG_LEVEL", "INFO"))
 _clients = {}
 
 
-def client(name):
-    """Cached boto3 clients, reused across warm invocations."""
-    if name not in _clients:
-        _clients[name] = boto3.client(name)
-    return _clients[name]
+def client(name, region=None):
+    """Cached boto3 clients, reused across warm invocations.
+
+    Regional detections (EC2) pass the event's region so remediation hits the
+    right place if events from other regions are ever forwarded here.
+    """
+    key = (name, region)
+    if key not in _clients:
+        _clients[key] = boto3.client(name, region_name=region) if region else boto3.client(name)
+    return _clients[key]
 
 
 def _now():

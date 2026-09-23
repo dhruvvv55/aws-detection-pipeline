@@ -52,3 +52,25 @@ resource "aws_cloudwatch_event_target" "iam_privesc_to_sqs" {
   target_id = "events-queue"
   arn       = aws_sqs_queue.events.arn
 }
+
+# EC2 is regional, so this only sees security group changes in us-east-1.
+# Covering other regions means forwarding their events to this bus (see README).
+resource "aws_cloudwatch_event_rule" "sg_open" {
+  name        = "${var.project_name}-sg-open"
+  description = "Security group ingress rules added"
+
+  event_pattern = jsonencode({
+    source        = ["aws.ec2"]
+    "detail-type" = ["AWS API Call via CloudTrail"]
+    detail = {
+      eventSource = ["ec2.amazonaws.com"]
+      eventName   = ["AuthorizeSecurityGroupIngress"]
+    }
+  })
+}
+
+resource "aws_cloudwatch_event_target" "sg_open_to_sqs" {
+  rule      = aws_cloudwatch_event_rule.sg_open.name
+  target_id = "events-queue"
+  arn       = aws_sqs_queue.events.arn
+}
