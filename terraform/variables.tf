@@ -32,3 +32,9 @@ variable "log_retention_days" {
   type        = number
   default     = 30
 }
+
+variable "dry_run" {
+  description = "If true, detect and alert but never remediate"
+  type        = bool
+  default     = false
+}

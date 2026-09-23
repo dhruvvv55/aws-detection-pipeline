@@ -21,3 +21,11 @@ output "dlq_url" {
 output "lambda_log_group" {
   value = aws_cloudwatch_log_group.lambda.name
 }
+
+output "findings_table" {
+  value = aws_dynamodb_table.findings.name
+}
+
+output "alert_topic_arn" {
+  value = aws_sns_topic.alerts.arn
+}

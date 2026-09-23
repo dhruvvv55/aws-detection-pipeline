@@ -7,6 +7,7 @@ data "archive_file" "lambda" {
   type        = "zip"
   source_dir  = "${path.module}/../lambda/src"
   output_path = "${path.module}/build/lambda.zip"
+  excludes    = ["__pycache__", "**/__pycache__", "**/__pycache__/**"]
 }
 
 # Created by Terraform so we control retention. If Lambda creates it,
@@ -33,7 +34,7 @@ resource "aws_iam_role" "lambda" {
   assume_role_policy = data.aws_iam_policy_document.lambda_assume.json
 }
 
-# Base permissions only. Each detection adds its own remediation permissions later.
+# What every detection needs: read the queue, write logs, findings, alerts
 data "aws_iam_policy_document" "lambda_base" {
   statement {
     sid = "ConsumeEventsQueue"
@@ -50,12 +51,43 @@ data "aws_iam_policy_document" "lambda_base" {
     actions   = ["logs:CreateLogStream", "logs:PutLogEvents"]
     resources = ["${aws_cloudwatch_log_group.lambda.arn}:*"]
   }
+
+  statement {
+    sid       = "WriteFindings"
+    actions   = ["dynamodb:PutItem"]
+    resources = [aws_dynamodb_table.findings.arn]
+  }
+
+  statement {
+    sid       = "PublishAlerts"
+    actions   = ["sns:Publish"]
+    resources = [aws_sns_topic.alerts.arn]
+  }
 }
 
 resource "aws_iam_role_policy" "lambda_base" {
   name   = "base"
   role   = aws_iam_role.lambda.id
   policy = data.aws_iam_policy_document.lambda_base.json
+}
+
+# Detection 1: only the two S3 calls it needs. Any bucket can be the victim,
+# so the resource can't be narrowed further than arn:aws:s3:::*
+data "aws_iam_policy_document" "detect_s3_public" {
+  statement {
+    sid = "S3PublicBucketRemediation"
+    actions = [
+      "s3:GetBucketTagging",           # allowlist check
+      "s3:PutBucketPublicAccessBlock", # the fix
+    ]
+    resources = ["arn:aws:s3:::*"]
+  }
+}
+
+resource "aws_iam_role_policy" "detect_s3_public" {
+  name   = "detect-s3-public"
+  role   = aws_iam_role.lambda.id
+  policy = data.aws_iam_policy_document.detect_s3_public.json
 }
 
 # ---------- Function ----------
@@ -73,14 +105,17 @@ resource "aws_lambda_function" "handler" {
 
   environment {
     variables = {
-      LOG_LEVEL = "DEBUG" # logs raw events while we build; drop to INFO later
-      DRY_RUN   = "true"  # nothing remediates yet anyway
+      LOG_LEVEL       = "INFO"
+      DRY_RUN         = tostring(var.dry_run)
+      FINDINGS_TABLE  = aws_dynamodb_table.findings.name
+      ALERT_TOPIC_ARN = aws_sns_topic.alerts.arn
     }
   }
 
   depends_on = [
     aws_cloudwatch_log_group.lambda,
     aws_iam_role_policy.lambda_base,
+    aws_iam_role_policy.detect_s3_public,
   ]
 }
 
