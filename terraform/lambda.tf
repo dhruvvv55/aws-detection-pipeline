@@ -1,6 +1,12 @@
 locals {
   lambda_name    = "${var.project_name}-handler"
   lambda_timeout = 15
+
+  iam_principal_arns = [
+    "arn:aws:iam::${local.account_id}:user/*",
+    "arn:aws:iam::${local.account_id}:role/*",
+    "arn:aws:iam::${local.account_id}:group/*",
+  ]
 }
 
 data "archive_file" "lambda" {
@@ -90,6 +96,36 @@ resource "aws_iam_role_policy" "detect_s3_public" {
   policy = data.aws_iam_policy_document.detect_s3_public.json
 }
 
+# Detection 2: remove-only IAM permissions. Nothing here can attach, put,
+# create, or add, so even a fully compromised Lambda can't grant access.
+data "aws_iam_policy_document" "detect_iam_privesc" {
+  statement {
+    sid = "IamPrivescRemediation"
+    actions = [
+      "iam:DetachUserPolicy", "iam:DetachRolePolicy", "iam:DetachGroupPolicy",
+      "iam:DeleteUserPolicy", "iam:DeleteRolePolicy", "iam:DeleteGroupPolicy",
+      "iam:UpdateAccessKey",
+      "iam:RemoveUserFromGroup",
+    ]
+    resources = local.iam_principal_arns
+  }
+
+  statement {
+    sid = "IamPrivescChecks"
+    actions = [
+      "iam:ListUserTags", "iam:ListRoleTags", # allowlist
+      "iam:ListAttachedGroupPolicies", "iam:ListGroupPolicies", "iam:GetGroupPolicy", # is the group admin?
+    ]
+    resources = local.iam_principal_arns
+  }
+}
+
+resource "aws_iam_role_policy" "detect_iam_privesc" {
+  name   = "detect-iam-privesc"
+  role   = aws_iam_role.lambda.id
+  policy = data.aws_iam_policy_document.detect_iam_privesc.json
+}
+
 # ---------- Function ----------
 
 resource "aws_lambda_function" "handler" {
@@ -116,6 +152,7 @@ resource "aws_lambda_function" "handler" {
     aws_cloudwatch_log_group.lambda,
     aws_iam_role_policy.lambda_base,
     aws_iam_role_policy.detect_s3_public,
+    aws_iam_role_policy.detect_iam_privesc,
   ]
 }
 

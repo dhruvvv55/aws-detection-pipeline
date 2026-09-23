@@ -1,3 +1,11 @@
+locals {
+  # Every detection rule that feeds the queue. Add new rules here.
+  detection_rule_arns = [
+    aws_cloudwatch_event_rule.s3_public_access.arn,
+    aws_cloudwatch_event_rule.iam_privesc.arn,
+  ]
+}
+
 # Dead-letter queue: anything the Lambda fails on 3 times ends up here
 resource "aws_sqs_queue" "dlq" {
   name                      = "${var.project_name}-dlq"
@@ -29,10 +37,9 @@ resource "aws_sqs_queue_redrive_allow_policy" "dlq" {
   })
 }
 
-# EventBridge needs explicit permission to send to the queue, scoped to our rules
 data "aws_iam_policy_document" "events_queue" {
   statement {
-    sid       = "AllowEventBridgeRules"
+    sid       = "AllowDetectionRules"
     actions   = ["sqs:SendMessage"]
     resources = [aws_sqs_queue.events.arn]
     principals {
@@ -42,9 +49,29 @@ data "aws_iam_policy_document" "events_queue" {
     condition {
       test     = "ArnEquals"
       variable = "aws:SourceArn"
-      values = [
-        aws_cloudwatch_event_rule.s3_public_access.arn,
-      ]
+      values   = local.detection_rule_arns
+    }
+  }
+
+  # The Lambda can now detach policies from any IAM principal. If anyone with
+  # sqs:SendMessage could drop a forged "AdministratorAccess attached" event in
+  # the queue, they could make it strip a real admin's access. This Deny blocks
+  # every sender except our EventBridge rules, even IAM users whose own policies
+  # allow SendMessage. (aws:SourceArn is absent for normal callers, so the
+  # negated condition matches and the Deny applies.)
+  statement {
+    sid       = "DenyEveryoneElse"
+    effect    = "Deny"
+    actions   = ["sqs:SendMessage"]
+    resources = [aws_sqs_queue.events.arn]
+    principals {
+      type        = "*"
+      identifiers = ["*"]
+    }
+    condition {
+      test     = "ArnNotEquals"
+      variable = "aws:SourceArn"
+      values   = local.detection_rule_arns
     }
   }
 }

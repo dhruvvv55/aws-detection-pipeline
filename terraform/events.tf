@@ -26,3 +26,29 @@ resource "aws_cloudwatch_event_target" "s3_public_access_to_sqs" {
   target_id = "events-queue"
   arn       = aws_sqs_queue.events.arn
 }
+
+# IAM is a global service, but its CloudTrail events are delivered to
+# us-east-1. A rule in any other region would never see these.
+resource "aws_cloudwatch_event_rule" "iam_privesc" {
+  name        = "${var.project_name}-iam-privesc"
+  description = "IAM changes that can grant admin access or new credentials"
+
+  event_pattern = jsonencode({
+    source        = ["aws.iam"]
+    "detail-type" = ["AWS API Call via CloudTrail"]
+    detail = {
+      eventSource = ["iam.amazonaws.com"]
+      eventName = [
+        "AttachUserPolicy", "AttachRolePolicy", "AttachGroupPolicy",
+        "PutUserPolicy", "PutRolePolicy", "PutGroupPolicy",
+        "CreateAccessKey", "AddUserToGroup",
+      ]
+    }
+  })
+}
+
+resource "aws_cloudwatch_event_target" "iam_privesc_to_sqs" {
+  rule      = aws_cloudwatch_event_rule.iam_privesc.name
+  target_id = "events-queue"
+  arn       = aws_sqs_queue.events.arn
+}

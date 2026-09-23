@@ -54,11 +54,11 @@ def should_skip(detail):
 
 
 def build_finding(detection, result, detail):
-    return {
+    finding = {
         "finding_id": f"{detection.NAME}#{detail['eventID']}",
         "detection": detection.NAME,
-        "technique": detection.TECHNIQUE,
-        "technique_name": detection.TECHNIQUE_NAME,
+        "technique": result.get("technique", detection.TECHNIQUE),
+        "technique_name": result.get("technique_name", detection.TECHNIQUE_NAME),
         "reason": result["reason"],
         "resource": result["resource"],
         "event_name": detail["eventName"],
@@ -68,6 +68,9 @@ def build_finding(detection, result, detail):
         "source_ip": detail.get("sourceIPAddress", "unknown"),
         "detected_at": _iso(_now()),
     }
+    if result.get("evidence"):
+        finding["evidence"] = result["evidence"][:4000]
+    return finding
 
 
 def save_finding(finding):
@@ -161,6 +164,10 @@ def process_record(record_):
         result = detection.evaluate(detail)
         if result is None:
             logger.info("%s %s is benign for %s", event_name, detail.get("eventID"), detection.NAME)
+            continue
+        confirm = getattr(detection, "confirm", None)
+        if confirm and not confirm(result, client):
+            logger.info("%s %s is benign for %s after confirmation", event_name, detail.get("eventID"), detection.NAME)
             continue
         handle_detection(detection, result, detail)
 

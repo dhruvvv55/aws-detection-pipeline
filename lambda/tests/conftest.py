@@ -28,3 +28,19 @@ def make_s3_event(benign_policy_detail):
         return detail
 
     return make
+
+
+@pytest.fixture
+def make_iam_event(benign_policy_detail):
+    """IAM event built on the same real CloudTrail skeleton. Actor is dhruv-admin (IAMUser)."""
+
+    def make(event_name, request_parameters, response_elements=None, **extra):
+        detail = copy.deepcopy(benign_policy_detail)
+        detail["eventSource"] = "iam.amazonaws.com"
+        detail["eventName"] = event_name
+        detail["requestParameters"] = request_parameters
+        detail["responseElements"] = response_elements
+        detail.update(extra)
+        return detail
+
+    return make

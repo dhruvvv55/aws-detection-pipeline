@@ -99,3 +99,38 @@ def test_remediation_failure_is_recorded_then_retried(fakes, make_s3_event):
 def test_bad_message_is_reported_as_batch_failure(fakes):
     out = handler.lambda_handler({"Records": [{"messageId": "bad", "body": "not json"}]}, None)
     assert out == {"batchItemFailures": [{"itemIdentifier": "bad"}]}
+
+
+def test_add_to_non_admin_group_records_nothing(fakes, make_iam_event, monkeypatch):
+    s3, sns, saved = fakes
+
+    class NoAdminIAM:
+        def list_attached_group_policies(self, GroupName):
+            return {"AttachedPolicies": []}
+
+        def list_group_policies(self, GroupName):
+            return {"PolicyNames": []}
+
+    monkeypatch.setattr(handler, "client", lambda name: {"s3": s3, "sns": sns, "iam": NoAdminIAM()}[name])
+    handler.process_record(sqs_record(make_iam_event("AddUserToGroup", {"groupName": "devs", "userName": "u"})))
+    assert saved == [] and sns.messages == []
+
+
+def test_finding_uses_sub_technique_from_result(fakes, make_iam_event, monkeypatch):
+    s3, sns, saved = fakes
+    calls = []
+
+    class IAM:
+        def list_user_tags(self, UserName):
+            return {"Tags": []}
+
+        def update_access_key(self, **kw):
+            calls.append(kw)
+
+    monkeypatch.setattr(handler, "client", lambda name: {"s3": s3, "sns": sns, "iam": IAM()}[name])
+    detail = make_iam_event("CreateAccessKey", {"userName": "victim"},
+                            {"accessKey": {"accessKeyId": "AKIDEXAMPLE0000001"}})
+    handler.process_record(sqs_record(detail))
+    assert saved[0]["technique"] == "T1098.001"
+    assert saved[0]["remediation_status"] == "REMEDIATED"
+    assert calls[0]["Status"] == "Inactive"
