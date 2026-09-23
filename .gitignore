@@ -1,0 +1,14 @@
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+*.tfvars
+!*.tfvars.example
+# Keep .terraform.lock.hcl committed so provider versions are pinned
+
+# Python
+__pycache__/
+.venv/
+.pytest_cache/
+.DS_Store

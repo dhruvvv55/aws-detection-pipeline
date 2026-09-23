@@ -1,0 +1,4 @@
+# Copy to terraform.tfvars (gitignored) and fill in
+alert_email = "pateldhruv0609@gmail.com"
+# aws_profile      = "detlab"
+# budget_limit_usd = "5"
