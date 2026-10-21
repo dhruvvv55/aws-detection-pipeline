@@ -113,7 +113,7 @@ data "aws_iam_policy_document" "detect_iam_privesc" {
   statement {
     sid = "IamPrivescChecks"
     actions = [
-      "iam:ListUserTags", "iam:ListRoleTags", # allowlist
+      "iam:ListUserTags", "iam:ListRoleTags",                                         # allowlist
       "iam:ListAttachedGroupPolicies", "iam:ListGroupPolicies", "iam:GetGroupPolicy", # is the group admin?
     ]
     resources = local.iam_principal_arns
