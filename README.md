@@ -1,5 +1,7 @@
 # AWS Detection and Auto-Remediation Pipeline
 
+![CI](https://github.com/dhruvvv55/aws-detection-pipeline/actions/workflows/ci.yml/badge.svg)
+
 This project watches an AWS account for three kinds of risky configuration change and undoes them automatically. If someone makes an S3 bucket public, grants a user admin rights, or opens SSH or RDP on a security group to the whole internet, the pipeline picks up the CloudTrail event, reverts the change, records a finding mapped to MITRE ATT&CK, and emails an alert.
 
 Across 30 timed runs, the median time from the change to the fix was 2.9 seconds for IAM privilege escalation, 4.4 seconds for security groups, and 9.5 seconds for S3. The pipeline's own code accounts for less than 0.6 seconds of that. Almost all of the rest is CloudTrail delivering the event.
