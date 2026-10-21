@@ -19,6 +19,8 @@ data "archive_file" "lambda" {
 # Created by Terraform so we control retention. If Lambda creates it,
 # logs are kept forever and the role needs logs:CreateLogGroup.
 resource "aws_cloudwatch_log_group" "lambda" {
+  #checkov:skip=CKV_AWS_158:Logs hold no secrets and are encrypted by CloudWatch by default; a CMK adds cost for a lab
+  #checkov:skip=CKV_AWS_338:14-day retention is intentional to control cost; durable findings are stored in DynamoDB
   name              = "/aws/lambda/${local.lambda_name}"
   retention_in_days = 14
 }
@@ -154,6 +156,12 @@ resource "aws_iam_role_policy" "detect_sg_open" {
 # ---------- Function ----------
 
 resource "aws_lambda_function" "handler" {
+  #checkov:skip=CKV_AWS_116:Lambda is SQS-triggered; failed messages already go to the SQS redrive DLQ. A Lambda DLQ only applies to async invokes
+  #checkov:skip=CKV_AWS_117:The function only calls AWS APIs; putting it in a VPC would need NAT or endpoints and adds cost without reducing risk
+  #checkov:skip=CKV_AWS_173:Env vars hold only names and ARNs, no secrets, and are encrypted at rest by Lambda by default
+  #checkov:skip=CKV_AWS_272:Single-developer deploys go through Terraform from source; code signing is a planned hardening step
+  #checkov:skip=CKV_AWS_50:X-Ray tracing is observability, not security; logs and DynamoDB findings cover this lab
+  #checkov:skip=CKV_AWS_115:Concurrency is capped on the SQS event source mapping (maximum_concurrency) to avoid reserving account concurrency
   function_name    = local.lambda_name
   role             = aws_iam_role.lambda.arn
   runtime          = "python3.13"
@@ -186,6 +194,11 @@ resource "aws_lambda_event_source_mapping" "events_queue" {
   event_source_arn = aws_sqs_queue.events.arn
   function_name    = aws_lambda_function.handler.arn
   batch_size       = 10
+
+  # Cap parallel invocations so a burst of events can't run away with account concurrency
+  scaling_config {
+    maximum_concurrency = 5
+  }
 
   # Lets the handler fail individual messages instead of the whole batch
   function_response_types = ["ReportBatchItemFailures"]

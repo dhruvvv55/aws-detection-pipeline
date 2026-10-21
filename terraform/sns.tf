@@ -1,5 +1,7 @@
+# Alerts are encrypted at rest with the free AWS managed SNS key
 resource "aws_sns_topic" "alerts" {
-  name = "${var.project_name}-alerts"
+  name              = "${var.project_name}-alerts"
+  kms_master_key_id = "alias/aws/sns"
 }
 
 # AWS emails a confirmation link after apply. No alerts arrive until you click it.

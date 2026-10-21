@@ -45,9 +45,8 @@ jobs:
           directory: terraform
           framework: terraform
           quiet: true
-          # Start with soft_fail so you can see findings without breaking the build.
-          # Fix or skip them, then set this to false so new misconfigs block merges.
-          soft_fail: true
+          # Every finding is either fixed or skipped with a reason, so new misconfigs fail the build
+          soft_fail: false
 
   secrets:
     name: Secret scan
